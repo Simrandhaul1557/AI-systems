@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy to Staging — runs ONLY on merge to main (after CI passes)
+#
+# What it does:
+#   1. Re-runs the test suite (gate before any deploy)
+#   2. Builds a Docker image and pushes it to a container registry
+#   3. Deploys the image to a staging environment (fly.io used as example;
+#      substitute your own platform: Render, Railway, ECS, Cloud Run, etc.)
+#   4. Runs a smoke test against the staging URL
+#
+# Secrets required (GitHub → Settings → Secrets → Actions):
+#   OPENAI_API_KEY      — LLM API key (injected at runtime, never logged)
+#   FLY_API_TOKEN       — deploy token scoped to this app only (least privilege)
+#   STAGING_APP_NAME    — name of the staging app on Fly.io
+#   DOCKER_REGISTRY     — e.g. ghcr.io/your-org
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main                  # only on merge to main
+
+permissions:
+  contents: read
+  packages: write             # needed to push to GitHub Container Registry
+
+jobs:
+  # ── 1. Gate: tests must pass before any deploy ────────────────────────────
+  test:
+    name: Test gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: pytest tests/ -v --tb=short
+
+  # ── 2. Build & push Docker image ──────────────────────────────────────────
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN is an automatic secret — no manual configuration needed
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=staging-
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache layers between runs to speed up builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── 3. Deploy to staging ──────────────────────────────────────────────────
+  deploy:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: staging
+      url: https://${{ secrets.STAGING_APP_NAME }}.fly.dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to staging
+        # FLY_API_TOKEN is scoped to this app only — not an org-wide token.
+        # It is passed as an env var and never echoed in logs.
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          flyctl deploy \
+            --app "${{ secrets.STAGING_APP_NAME }}" \
+            --image "${{ needs.build.outputs.image_tag }}" \
+            --strategy rolling \
+            --wait-timeout 300
+
+  # ── 4. Smoke test ─────────────────────────────────────────────────────────
+  smoke_test:
+    name: Smoke test staging
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install httpx
+
+      - name: Run smoke test
+        env:
+          STAGING_URL: https://${{ secrets.STAGING_APP_NAME }}.fly.dev
+        run: |
+          python part3_cicd/smoke_test.py
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Smoke test failed — staging deploy may be broken"
+          # In production: call Slack/PagerDuty webhook here
