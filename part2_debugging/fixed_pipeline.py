@@ -52,9 +52,7 @@ class UserContextCache:
 _context_cache = UserContextCache()
 
 
-def fetch_user_context(
-    user_id: str, cache: Optional[UserContextCache] = None
-) -> dict:
+def fetch_user_context(user_id: str, cache: Optional[UserContextCache] = None) -> dict:
     """
     FIX A: Cache is an injected dependency, not a shared mutable default.
     Each caller can pass its own cache, or use the module-level singleton.
@@ -140,9 +138,7 @@ def generate_summary(context: dict, retries: int = LLM_MAX_RETRIES) -> str:
             )
             time.sleep(wait)
 
-    raise RuntimeError(
-        f"generate_summary failed after {retries} retries"
-    ) from last_error
+    raise RuntimeError(f"generate_summary failed after {retries} retries") from last_error
 
 
 # ---------------------------------------------------------------------------
@@ -155,9 +151,7 @@ _SCORE_PATTERN = re.compile(r"\b([0-9]{1,3})\b")
 def _mock_llm_score(prompt: str) -> str:
     score = random.randint(10, 95)
     if random.random() < 0.4:
-        return (
-            f"Based on the provided information, I would score this lead: {score}/100."
-        )
+        return f"Based on the provided information, I would score this lead: {score}/100."
     return f"Score: {score}"
 
 
@@ -184,9 +178,7 @@ def score_lead(summary: str, context: dict) -> int:
 
     score = _extract_score(response)
     if score is None:
-        logger.warning(
-            "Could not parse score from response=%r; defaulting to 50", response
-        )
+        logger.warning("Could not parse score from response=%r; defaulting to 50", response)
         score = 50  # safe default -- never stored as None
 
     return score

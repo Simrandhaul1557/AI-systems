@@ -113,9 +113,7 @@ def _mock_llm_score(prompt: str) -> str:
     score = random.randint(10, 95)
     if random.random() < 0.4:
         # Realistic LLM response WITH preamble -- breaks the brittle regex
-        return (
-            f"Based on the provided information, I would score this lead: {score}/100."
-        )
+        return f"Based on the provided information, I would score this lead: {score}/100."
     # Clean response -- the regex happens to work
     return f"Score: {score}"
 

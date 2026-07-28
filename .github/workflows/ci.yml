@@ -40,7 +40,7 @@ jobs:
         run: pip install flake8==7.0.0 black==24.4.2
 
       - name: Run flake8
-        run: flake8 . --max-line-length=100 --exclude=.git,__pycache__
+        run: flake8 . --max-line-length=100 --extend-ignore=E203 --exclude=.git,__pycache__
 
       - name: Run black (check mode — does not modify files)
         run: black --check --line-length=100 .

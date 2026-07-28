@@ -57,13 +57,9 @@ def main() -> None:
 
     corpus_tokens = len(enc.encode(FULL_DOCUMENT_CORPUS))
     fewshot_tokens = len(enc.encode(FEW_SHOT_EXAMPLES))
-    history_tokens = sum(
-        len(enc.encode(m["content"])) for m in SIMULATED_CONVERSATION_HISTORY
-    )
+    history_tokens = sum(len(enc.encode(m["content"])) for m in SIMULATED_CONVERSATION_HISTORY)
     query_tokens = len(enc.encode(SAMPLE_QUERY))
-    overhead = (
-        baseline_tokens - corpus_tokens - fewshot_tokens - history_tokens - query_tokens
-    )
+    overhead = baseline_tokens - corpus_tokens - fewshot_tokens - history_tokens - query_tokens
 
     print(f"    Full document corpus  : {corpus_tokens:>10,} tokens")
     print(f"    Few-shot examples     : {fewshot_tokens:>10,} tokens")

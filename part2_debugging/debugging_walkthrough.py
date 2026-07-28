@@ -134,7 +134,7 @@ def demonstrate_bug_a() -> None:
 
     fetch_user_context("alpha")
     fetch_user_context("alpha")  # same user -- returns from cache (ok)
-    fetch_user_context("beta")   # different user -- fresh fetch (ok so far)
+    fetch_user_context("beta")  # different user -- fresh fetch (ok so far)
 
     # The shared dict is accessible to all callers and grows unbounded.
     import part2_debugging.broken_pipeline as bp

@@ -90,9 +90,7 @@ RECENT_TURNS = [
     },
     {
         "role": "assistant",
-        "content": (
-            "GDPR requires 30-day retention and EU-West residency for EU customer data."
-        ),
+        "content": ("GDPR requires 30-day retention and EU-West residency for EU customer data."),
     },
 ]  # approximately 40 tokens for both turns
 
@@ -138,7 +136,7 @@ class OptimizedAgent:
                 "content": f"[Conversation summary so far]: {self.rolling_summary}",
             },
         ]
-        messages.extend(self.recent_turns[-(self.max_recent_turns * 2):])
+        messages.extend(self.recent_turns[-(self.max_recent_turns * 2) :])
         messages.append({"role": "user", "content": user_query})
         return messages
 

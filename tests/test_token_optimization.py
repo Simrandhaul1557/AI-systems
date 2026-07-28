@@ -1,4 +1,5 @@
 """Tests for Part 1 -- Token Optimization"""
+
 import pytest  # noqa: F401
 
 from part1_token_optimization.baseline_agent import (
@@ -50,7 +51,4 @@ def test_optimized_messages_contain_retrieved_context():
     """System prompt must include the RAG-retrieved chunks."""
     msgs = OptimizedAgent().build_messages(SAMPLE_QUERY)
     system_content = msgs[0]["content"]
-    assert (
-        "Expense Reimbursement" in system_content
-        or "expense" in system_content.lower()
-    )
+    assert "Expense Reimbursement" in system_content or "expense" in system_content.lower()
