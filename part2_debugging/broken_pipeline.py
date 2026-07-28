@@ -2,29 +2,29 @@
 Part 2 — The Broken Pipeline
 =============================
 A multi-step agent workflow with THREE intentional bugs that cause:
-  • Intermittent timeouts
-  • Malformed JSON output
-  • Silent wrong-data failures
+  * Intermittent timeouts
+  * Malformed JSON output
+  * Silent wrong-data failures
 
 This is the "before" state.  See fixed_pipeline.py for the repaired version
 and debugging_walkthrough.py for the step-by-step diagnosis.
 
 Pipeline steps:
-  1. fetch_user_context   — retrieve user profile from a (mock) API
-  2. generate_summary     — call LLM to summarise the profile
-  3. score_lead           — call LLM to score the lead 0-100
-  4. persist_result       — write scored lead to a (mock) DB
+  1. fetch_user_context  -- retrieve user profile from a (mock) API
+  2. generate_summary    -- call LLM to summarise the profile
+  3. score_lead          -- call LLM to score the lead 0-100
+  4. persist_result      -- write scored lead to a (mock) DB
 
 Bugs introduced:
-  BUG A — fetch_user_context has a race condition: a shared mutable default
+  BUG A -- fetch_user_context has a race condition: a shared mutable default
            argument accumulates state across calls, causing wrong data to bleed
            between requests (silent wrong-data failure).
 
-  BUG B — generate_summary has no timeout on the HTTP call and no retry logic,
+  BUG B -- generate_summary has no timeout on the HTTP call and no retry logic,
            so a slow upstream causes the whole pipeline to hang (intermittent
            timeout).
 
-  BUG C — score_lead parses the LLM response with a brittle regex that breaks
+  BUG C -- score_lead parses the LLM response with a brittle regex that breaks
            if the model includes any preamble text, returning None and causing
            the downstream persist step to store null scores (malformed output).
 """
@@ -37,11 +37,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 # ---------------------------------------------------------------------------
-# BUG A — mutable default argument (shared state across calls)
+# BUG A -- mutable default argument (shared state across calls)
 # ---------------------------------------------------------------------------
 
-def fetch_user_context(user_id: str, _cache: dict = {}) -> dict:   # noqa: B006
+
+def fetch_user_context(user_id: str, _cache: dict = {}) -> dict:  # noqa: B006
     """
     Fetch user context from upstream API.
 
@@ -56,7 +58,6 @@ def fetch_user_context(user_id: str, _cache: dict = {}) -> dict:   # noqa: B006
         logger.debug("Cache hit for user_id=%s", user_id)
         return _cache[user_id]
 
-    # Simulate API call
     logger.info("Fetching context for user_id=%s", user_id)
     context = {
         "user_id": user_id,
@@ -70,8 +71,9 @@ def fetch_user_context(user_id: str, _cache: dict = {}) -> dict:   # noqa: B006
 
 
 # ---------------------------------------------------------------------------
-# BUG B — no timeout, no retry (intermittent hang)
+# BUG B -- no timeout, no retry (intermittent hang)
 # ---------------------------------------------------------------------------
+
 
 def _mock_llm_call(prompt: str) -> str:
     """
@@ -79,7 +81,7 @@ def _mock_llm_call(prompt: str) -> str:
     the time to simulate a slow/unresponsive upstream.
     """
     if random.random() < 0.2:
-        logger.warning("Simulating slow LLM response (30s delay)…")
+        logger.warning("Simulating slow LLM response (30s delay)...")
         time.sleep(30)  # This will hang the whole pipeline with no timeout
     return f"Summary of: {prompt[:80]}"
 
@@ -89,20 +91,19 @@ def generate_summary(context: dict) -> str:
     Summarise the user context via LLM.
 
     BUG: No timeout is set on the _mock_llm_call.  If the upstream is slow,
-    this blocks indefinitely — causing the whole pipeline to hang and the
+    this blocks indefinitely -- causing the whole pipeline to hang and the
     caller to receive a timeout error only if their own HTTP server times out
     first (usually resulting in a confusing 504 rather than a clear error).
     """
-    prompt = (
-        f"Summarise this lead in 2 sentences: {json.dumps(context)}"
-    )
-    summary = _mock_llm_call(prompt)   # BUG: no timeout= parameter
+    prompt = f"Summarise this lead in 2 sentences: {json.dumps(context)}"
+    summary = _mock_llm_call(prompt)  # BUG: no timeout parameter
     return summary
 
 
 # ---------------------------------------------------------------------------
-# BUG C — brittle regex, silent None on parse failure
+# BUG C -- brittle regex, silent None on parse failure
 # ---------------------------------------------------------------------------
+
 
 def _mock_llm_score(prompt: str) -> str:
     """
@@ -111,11 +112,12 @@ def _mock_llm_score(prompt: str) -> str:
     """
     score = random.randint(10, 95)
     if random.random() < 0.4:
-        # Realistic LLM response WITH preamble — breaks the brittle regex
-        return f"Based on the provided information, I would score this lead: {score}/100."
-    else:
-        # Clean response — the regex happens to work
-        return f"Score: {score}"
+        # Realistic LLM response WITH preamble -- breaks the brittle regex
+        return (
+            f"Based on the provided information, I would score this lead: {score}/100."
+        )
+    # Clean response -- the regex happens to work
+    return f"Score: {score}"
 
 
 def score_lead(summary: str, context: dict) -> int | None:
@@ -125,7 +127,7 @@ def score_lead(summary: str, context: dict) -> int | None:
     BUG: The regex r"Score:\\s*(\\d+)" only matches if the LLM says exactly
     "Score: <number>".  Any variation (preamble, different wording, the number
     appearing mid-sentence) returns None.  The None then propagates silently to
-    the database as a null score — no exception, no log warning.
+    the database as a null score -- no exception, no log warning.
     """
     prompt = f"Score this lead 0-100 based on: {summary}. Context: {context}"
     response = _mock_llm_score(prompt)
@@ -134,13 +136,14 @@ def score_lead(summary: str, context: dict) -> int | None:
     match = re.search(r"Score:\s*(\d+)", response)  # BUG: brittle pattern
     if match:
         return int(match.group(1))
-    # BUG: returns None silently — no warning logged, no fallback
+    # BUG: returns None silently -- no warning logged, no fallback
     return None
 
 
 # ---------------------------------------------------------------------------
-# Persist step (no bugs here — just writes whatever it receives)
+# Persist step (no bugs here -- just writes whatever it receives)
 # ---------------------------------------------------------------------------
+
 
 def persist_result(context: dict, summary: str, score: int | None) -> dict:
     """Write the scored lead to the (mock) database."""
@@ -159,14 +162,15 @@ def persist_result(context: dict, summary: str, score: int | None) -> dict:
 # Main pipeline orchestrator
 # ---------------------------------------------------------------------------
 
+
 def run_pipeline(user_id: str) -> dict:
     """Run all four steps in sequence."""
     logger.info("Pipeline start for user_id=%s", user_id)
 
     context = fetch_user_context(user_id)
     summary = generate_summary(context)
-    score   = score_lead(summary, context)
-    result  = persist_result(context, summary, score)
+    score = score_lead(summary, context)
+    result = persist_result(context, summary, score)
 
     logger.info("Pipeline complete: score=%s", score)
     return result
@@ -174,7 +178,7 @@ def run_pipeline(user_id: str) -> dict:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(message)s")
-    print("Running broken pipeline (may hang 20% of the time)…")
-    for uid in ["user_001", "user_002", "user_001"]:   # note repeated user_001
+    print("Running broken pipeline (may hang 20% of the time)...")
+    for uid in ["user_001", "user_002", "user_001"]:  # note repeated user_001
         result = run_pipeline(uid)
         print(f"Result: {result}\n")

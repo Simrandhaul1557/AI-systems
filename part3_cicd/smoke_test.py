@@ -1,6 +1,6 @@
 """
-Part 3 — Smoke Test
-====================
+Part 3 -- Smoke Test
+=====================
 Runs after every staging deploy to confirm the service is alive and the
 critical API endpoints respond correctly.
 
@@ -9,7 +9,7 @@ Called by deploy_staging.yml as a post-deploy gate.
 
 import os
 import sys
-import json
+
 import httpx
 
 STAGING_URL = os.environ.get("STAGING_URL", "http://localhost:8000")
@@ -20,7 +20,6 @@ def check(name: str, condition: bool, detail: str = "") -> None:
     status = "PASS" if condition else "FAIL"
     print(f"  [{status}] {name}" + (f": {detail}" if detail else ""))
     if not condition:
-        # Accumulate failures; caller decides whether to exit
         check._failures.append(name)  # type: ignore[attr-defined]
 
 
@@ -32,7 +31,7 @@ def main() -> None:
 
     client = httpx.Client(base_url=STAGING_URL, timeout=TIMEOUT)
 
-    # ── Health check ────────────────────────────────────────────────────────
+    # Health check
     try:
         r = client.get("/health")
         check("GET /health returns 200", r.status_code == 200, str(r.status_code))
@@ -42,7 +41,7 @@ def main() -> None:
     except Exception as exc:
         check("GET /health reachable", False, str(exc))
 
-    # ── Version endpoint ─────────────────────────────────────────────────────
+    # Version endpoint
     try:
         r = client.get("/version")
         check("GET /version returns 200", r.status_code == 200, str(r.status_code))
@@ -51,7 +50,7 @@ def main() -> None:
     except Exception as exc:
         check("GET /version reachable", False, str(exc))
 
-    # ── Pipeline endpoint ────────────────────────────────────────────────────
+    # Pipeline endpoint
     try:
         payload = {"user_id": "smoke_test_user"}
         r = client.post("/pipeline/run", json=payload)
@@ -69,7 +68,7 @@ def main() -> None:
     print()
     failures = check._failures  # type: ignore[attr-defined]
     if failures:
-        print(f"  SMOKE TEST FAILED — {len(failures)} check(s) failed: {failures}")
+        print(f"  SMOKE TEST FAILED -- {len(failures)} check(s) failed: {failures}")
         sys.exit(1)
     else:
         print("  All smoke tests passed.")
