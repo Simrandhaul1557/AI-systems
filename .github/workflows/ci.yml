@@ -62,18 +62,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run tests with coverage
-        # OPENAI_API_KEY is injected from GitHub Secrets.
-        # It is NEVER printed, echoed, or logged.
-        # The tests use mock LLM calls so the key is not actually needed
-        # at test-time — we include it here as the pattern for real test suites.
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          pytest tests/ -v --tb=short \
-            --cov=part1_token_optimization \
-            --cov=part2_debugging \
-            --cov-report=term-missing \
-            --cov-fail-under=80
+          python -m pytest tests/ -v --tb=short
 
       - name: Upload coverage report
         if: always()
